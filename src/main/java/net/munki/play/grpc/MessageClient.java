@@ -27,7 +27,7 @@ public class MessageClient {
         try {
             CopyOnWriteArrayList<JBot> bots = new CopyOnWriteArrayList<>();
             if (blockingStub == null) throw new Exception("Blocking Stub was null.");
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < 20; i++) {
                 JBot mybot = JBot.newBuilder().setName("munkinut_" + i).build();
                 client.register(mybot);
                 bots.add(mybot);
