@@ -1,10 +1,12 @@
 package net.munki.play.grpc;
 
+import com.google.protobuf.Descriptors;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 
 import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -18,7 +20,7 @@ public class MessageServer {
         /* The port on which the server should run */
         int port = 50051;
         server = ServerBuilder.forPort(port)
-                .addService(new MessengerImpl())
+                .addService(new JBotServiceImpl())
                 .build()
                 .start();
         logger.info("Server started, listening on " + port);
@@ -61,15 +63,68 @@ public class MessageServer {
         server.blockUntilShutdown();
     }
 
-    static class MessengerImpl extends MessengerGrpc.MessengerImplBase {
+    static class JBotServiceImpl extends JBotServiceGrpc.JBotServiceImplBase {
+
+        CopyOnWriteArrayList<JBot> botRequests = new CopyOnWriteArrayList<>();
 
         @Override
-        public void sayHello(MessageRequest req, StreamObserver<MessageReply> responseObserver) {
-            MessageReply reply = MessageReply.newBuilder().setMessage("Hello " + req.getName()).build();
+        public void register(JBot bot, StreamObserver<JBotReply> responseObserver) {
+            boolean success = botRequests.add(bot);
+            JBotReply reply = JBotReply.newBuilder().setResult(success).build();
             responseObserver.onNext(reply);
             responseObserver.onCompleted();
         }
-    }
 
+        @Override
+        public void unregister(JBot bot, StreamObserver<JBotReply> responseObserver) {
+            boolean success = botRequests.remove(bot);
+            JBotReply reply = JBotReply.newBuilder().setResult(success).build();
+            responseObserver.onNext(reply);
+            responseObserver.onCompleted();
+        }
+
+        @Override
+        public void getBot(JBot bot, StreamObserver<JBot> responseObserver) {
+            JBot myBot = null;
+            for (JBot jbot : botRequests) {
+                if (bot.getName().equals(jbot.getName()))  {
+                    myBot = jbot;
+                    break;
+                }
+            }
+            responseObserver.onNext(myBot);
+            responseObserver.onCompleted();
+        }
+
+        @Override
+        public void message(JBot botToExclude, StreamObserver<JBotReply> responseObserver) {
+            for (JBot jbot : botRequests) {
+                if (!jbot.getName().equals(botToExclude.getName())) {
+                    //JBot.Builder builder = jbot.toBuilder();
+                    //setFieldByName(builder, "message", botToExclude.getMessage());
+                    jbot.newBuilderForType().setMessage(botToExclude.getMessage());
+                }
+            }
+            JBotReply reply = JBotReply.newBuilder().setResult(true).build();
+            responseObserver.onNext(reply);
+            responseObserver.onCompleted();
+        }
+
+        public static void setFieldByName(JBot.Builder builder, String name, Object value) {
+
+            Descriptors.FieldDescriptor fieldDescriptor = builder.getDescriptorForType().findFieldByName(name);
+
+            if (value == null) {
+
+                builder.clearField(fieldDescriptor);
+
+            } else {
+
+                builder.setField(fieldDescriptor, value);
+
+            }
+
+        }
+    }
 
 }
